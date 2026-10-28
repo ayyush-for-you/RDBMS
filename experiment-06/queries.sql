@@ -1,268 +1,158 @@
--- Experiment 6
--- Stored procedure transfer_employee, salary validation triggers,
--- and a salary audit log.
--- Run experiments 3 and 5 first. Employee.manager_id must already exist.
-
-USE company_db;
-
 -- =====================================================
--- 1. CREATE AUDIT TABLE
+-- Experiment 6: Stored Procedures, Triggers & Audit Logging
+-- Database: CompanyDB
+-- Pre-requisites: Run Experiments 3, 4, and 5 first
 -- =====================================================
 
-CREATE TABLE IF NOT EXISTS salary_audit (
+USE CompanyDB;
+
+-- =====================================================
+-- 1. SALARY AUDIT TABLE
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS Employee_Salary_Audit (
     audit_id INT AUTO_INCREMENT PRIMARY KEY,
-    emp_id INT,
-    old_salary DECIMAL(10,2),
-    new_salary DECIMAL(10,2),
+    emp_id INT NOT NULL,
+    old_salary DECIMAL(10, 2),
+    new_salary DECIMAL(10, 2),
     changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    action VARCHAR(20)
+    action VARCHAR(30)
 );
 
 -- =====================================================
--- 2. SALARY VALIDATION TRIGGER
--- Salary must be greater than 0
+-- 2. SALARY VALIDATION TRIGGER (BEFORE INSERT)
 -- =====================================================
 
-DROP TRIGGER IF EXISTS validate_salary;
-
 DELIMITER //
-
-CREATE TRIGGER validate_salary
+CREATE TRIGGER validate_employee_salary_insert
 BEFORE INSERT ON Employee
 FOR EACH ROW
 BEGIN
-    IF NEW.salary <= 0 THEN
+    IF NEW.salary < 30000 OR NEW.salary > 150000 THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Salary must be greater than 0';
+        SET MESSAGE_TEXT = 'Salary must be between 30000 and 150000';
     END IF;
-END //
-
+END//
 DELIMITER ;
 
 -- =====================================================
--- 3. SALARY VALIDATION FOR UPDATE
+-- 3. SALARY UPDATE VALIDATION TRIGGER (BEFORE UPDATE)
 -- =====================================================
 
-DROP TRIGGER IF EXISTS validate_salary_update;
-
 DELIMITER //
-
-CREATE TRIGGER validate_salary_update
+CREATE TRIGGER validate_employee_salary_update
 BEFORE UPDATE ON Employee
 FOR EACH ROW
 BEGIN
-    IF NEW.salary <= 0 THEN
+    IF NEW.salary < 30000 OR NEW.salary > 150000 THEN
         SIGNAL SQLSTATE '45000'
-        SET MESSAGE_TEXT = 'Salary must be greater than 0';
+        SET MESSAGE_TEXT = 'Salary must be between 30000 and 150000';
     END IF;
-END //
-
+END//
 DELIMITER ;
 
 -- =====================================================
--- 4. AUDIT TRIGGER
--- Record salary changes
+-- 4. SALARY AUDIT TRIGGER (AFTER UPDATE)
 -- =====================================================
 
-DROP TRIGGER IF EXISTS salary_audit_trigger;
-
 DELIMITER //
-
-CREATE TRIGGER salary_audit_trigger
+CREATE TRIGGER audit_salary_update
 AFTER UPDATE ON Employee
 FOR EACH ROW
 BEGIN
     IF OLD.salary <> NEW.salary THEN
-        INSERT INTO salary_audit
-        (
-            emp_id,
-            old_salary,
-            new_salary,
-            action
-        )
-        VALUES
-        (
-            OLD.emp_id,
-            OLD.salary,
-            NEW.salary,
-            'SALARY UPDATE'
-        );
+        INSERT INTO Employee_Salary_Audit (emp_id, old_salary, new_salary, action)
+        VALUES (NEW.emp_id, OLD.salary, NEW.salary, 'SALARY UPDATE');
     END IF;
-END //
-
+END//
 DELIMITER ;
 
 -- =====================================================
--- 5. STORED PROCEDURE
--- transfer_employee(emp_id, new_dept_id)
+-- 5. STORED PROCEDURE: TRANSFER EMPLOYEE
 -- =====================================================
 
-DROP PROCEDURE IF EXISTS transfer_employee;
-
 DELIMITER //
-
 CREATE PROCEDURE transfer_employee(
     IN p_emp_id INT,
     IN p_new_dept_id INT
 )
 BEGIN
-    DECLARE employee_count INT DEFAULT 0;
-    DECLARE department_count INT DEFAULT 0;
-    DECLARE current_dept_id INT DEFAULT 0;
-
-    -- Error handler
+    DECLARE v_emp_count INT DEFAULT 0;
+    DECLARE v_dept_count INT DEFAULT 0;
+    DECLARE v_old_dept_id INT;
     DECLARE EXIT HANDLER FOR SQLEXCEPTION
     BEGIN
         ROLLBACK;
-        SELECT 'Transfer failed. Transaction rolled back.' AS message;
+        RESIGNAL;
     END;
 
     START TRANSACTION;
 
-    -- Check whether employee exists
-
-    SELECT COUNT(*)
-    INTO employee_count
-    FROM Employee
+    -- Validate employee exists
+    SELECT COUNT(*) INTO v_emp_count FROM Employee
     WHERE emp_id = p_emp_id;
-
-    IF employee_count = 0 THEN
+    IF v_emp_count = 0 THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Employee does not exist';
     END IF;
 
-    -- Check whether department exists
-
-    SELECT COUNT(*)
-    INTO department_count
-    FROM Department
+    -- Validate department exists
+    SELECT COUNT(*) INTO v_dept_count FROM Department
     WHERE dept_id = p_new_dept_id;
-
-    IF department_count = 0 THEN
+    IF v_dept_count = 0 THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Department does not exist';
     END IF;
 
-    -- Get current department
-
-    SELECT dept_id
-    INTO current_dept_id
-    FROM Employee
+    -- Check if employee is already in the target department
+    SELECT dept_id INTO v_old_dept_id FROM Employee
     WHERE emp_id = p_emp_id;
-
-    -- Check if employee is already in department
-
-    IF current_dept_id = p_new_dept_id THEN
+    IF v_old_dept_id = p_new_dept_id THEN
         SIGNAL SQLSTATE '45000'
         SET MESSAGE_TEXT = 'Employee is already in this department';
     END IF;
 
-    -- Transfer employee
-
+    -- Perform transfer
     UPDATE Employee
     SET dept_id = p_new_dept_id
     WHERE emp_id = p_emp_id;
 
     COMMIT;
-
-    SELECT
-        'Employee transferred successfully' AS message,
-        p_emp_id AS employee_id,
-        p_new_dept_id AS new_department;
-END //
-
+END//
 DELIMITER ;
 
 -- =====================================================
--- 6. TEST THE STORED PROCEDURE
+-- 6. VERIFICATION & TESTS
 -- =====================================================
 
--- Successful transfer
-CALL transfer_employee(1, 2);
+-- 6.1 Test Successful Transfer
+-- Transfer employee 6 (Harsh) from IT (dept_id = 1) to Marketing (dept_id = 4)
+CALL transfer_employee(6, 4);
 
--- Check employee
-SELECT *
-FROM Employee
-WHERE emp_id = 1;
-
--- =====================================================
--- 7. EDGE CASE: INVALID EMPLOYEE
--- =====================================================
-
-CALL transfer_employee(999, 2);
-
--- =====================================================
--- 8. EDGE CASE: INVALID DEPARTMENT
--- =====================================================
-
-CALL transfer_employee(1, 999);
-
--- =====================================================
--- 9. EDGE CASE: SAME DEPARTMENT
--- =====================================================
-
-CALL transfer_employee(1, 2);
-
--- =====================================================
--- 10. EDGE CASE: INVALID SALARY DURING INSERT
--- =====================================================
-
-INSERT INTO Employee
-(
-    emp_id,
-    emp_name,
-    salary,
-    hire_date,
-    dept_id,
-    project_id,
-    manager_id
-)
-VALUES
-(
-    31,
-    'Test Employee',
-    -5000,
-    '2026-09-30',
-    1,
-    101,
-    NULL
-);
-
--- =====================================================
--- 11. EDGE CASE: INVALID SALARY DURING UPDATE
--- =====================================================
-
-UPDATE Employee
-SET salary = -1000
-WHERE emp_id = 2;
-
--- =====================================================
--- 12. VALID SALARY UPDATE
--- This should succeed and create an audit record
--- =====================================================
-
-UPDATE Employee
-SET salary = 90000
-WHERE emp_id = 2;
-
--- =====================================================
--- 13. CHECK AUDIT LOG
--- =====================================================
-
-SELECT *
-FROM salary_audit
-ORDER BY changed_at DESC;
-
--- =====================================================
--- 14. VERIFY EMPLOYEE DATA
--- =====================================================
-
-SELECT
-    e.emp_id,
-    e.emp_name,
-    e.salary,
-    d.dept_name
+SELECT e.emp_id, e.emp_name, d.dept_name
 FROM Employee e
-JOIN Department d
-    ON e.dept_id = d.dept_id
-ORDER BY e.emp_id;
+JOIN Department d ON e.dept_id = d.dept_id
+WHERE e.emp_id = 6;
+
+-- 6.2 Test Edge Cases
+-- Test A: Invalid employee (emp_id = 99)
+CALL transfer_employee(99, 4);
+
+-- Test B: Invalid department (dept_id = 99)
+CALL transfer_employee(6, 99);
+
+-- Test C: Same department transfer
+CALL transfer_employee(6, 4);
+
+-- 6.3 Test Salary Validation
+-- Test invalid update (< 30,000) -> Expected to trigger error
+UPDATE Employee SET salary = 20000 WHERE emp_id = 6;
+
+-- Test valid update (within 30,000 to 150,000)
+UPDATE Employee SET salary = 85000 WHERE emp_id = 6;
+
+-- 6.4 Test Salary Audit Log
+-- Display audit entries generated by successful salary changes
+SELECT audit_id, emp_id, old_salary, new_salary, changed_at, action
+FROM Employee_Salary_Audit
+ORDER BY audit_id;
