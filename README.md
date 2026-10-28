@@ -2,9 +2,9 @@
 
 Lab programs for the RDBMS course, with the SQL and the output of each experiment.
 
-**Name:** Chahek Sinha  
-**Section:** AIML-4(D)  
-**Roll number:** 26LBCS8301
+**Name:** Ayush Kumar  
+**Section:** AIML-4(B)  
+**Roll number:** 25LBCS3142
 
 The scripts use MySQL and the database `company_db`. Run them in this order, because each experiment uses the tables created before it:
 
