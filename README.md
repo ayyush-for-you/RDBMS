@@ -10,10 +10,14 @@ Lab programs for the RDBMS course, with the SQL and the output of each experimen
 
 ## Overview
 
-The experiments in this repository cover database design and SQL programming across two relational databases:
+The experiments in this repository cover database design and SQL programming across six relational databases:
 
 1. **`IndianEcommerceDB`** (Experiments 1–2): E-commerce domain modeling, relational schema conversion, primary & foreign keys, constraints, and referential integrity violations (`ON DELETE CASCADE`, `ON DELETE SET NULL`).
 2. **`CompanyDB`** (Experiments 3–6): Enterprise Employee–Department–Project schema demonstrating advanced SQL constructs, query execution plans, updatable views, recursive common table expressions (CTEs), transactions, stored procedures, and triggers.
+3. **`NormalizationDB`** (Experiment 7): Functional dependencies and schema normalization from Unnormalized Form (UNF) through 1NF, 2NF, 3NF, to BCNF, with SQL verification of lossless join and dependency preservation.
+4. **`BankingDB`** (Experiment 8): Transaction processing and ACID compliance using `START TRANSACTION`, `COMMIT`, `ROLLBACK`, and `SAVEPOINT`, along with concurrency anomalies (Dirty Read, Non-Repeatable Read, Phantom Read) and transaction isolation levels.
+5. **`RailwayDB`** (Experiment 9): Performance benchmarking on 5,000+ railway reservation records comparing single-column and composite B-tree indexes against full table scans using `EXPLAIN`.
+6. **`OptimizationDB`** (Experiment 10): SQL performance tuning and anti-pattern optimization on 14,000+ e-commerce records, optimizing non-SARGable functions, leading wildcards, inefficient subqueries (`NOT IN` to Anti-Join), filesorts, and temporary tables.
 
 ---
 
@@ -27,6 +31,10 @@ Run the scripts in numerical order using MySQL:
 4. [Experiment 4 — Joins & Subqueries (`CompanyDB`)](experiment-04/queries.sql)
 5. [Experiment 5 — Views & Recursive CTE (`CompanyDB`)](experiment-05/queries.sql)
 6. [Experiment 6 — Stored Procedures & Triggers (`CompanyDB`)](experiment-06/queries.sql)
+7. [Experiment 7 — Normalization, Lossless Join & Dependency Preservation (`NormalizationDB`)](experiment-07/queries.sql)
+8. [Experiment 8 — Transactions, ACID Properties, Savepoints & Isolation Levels (`BankingDB`)](experiment-08/queries.sql)
+9. [Experiment 9 — Single-Column & Composite Indexing Benchmarks (`RailwayDB`)](experiment-09/queries.sql)
+10. [Experiment 10 — Query Optimization, Anti-Patterns & Execution Plans (`OptimizationDB`)](experiment-10/queries.sql)
 
 ---
 
@@ -83,3 +91,39 @@ Implement the stored procedure `transfer_employee(emp_id, new_dept_id)` with inp
 
 - Program: [experiment-06/queries.sql](experiment-06/queries.sql)
 - Output: [experiment-06/output](experiment-06/output)
+
+---
+
+### Experiment 7 — Normalization, Lossless Join & Dependency Preservation
+
+Identify functional dependencies in a denormalized Sales relation and normalize it progressively from Unnormalized Form (UNF) through 1NF, 2NF, 3NF, and Boyce–Codd Normal Form (BCNF). Verify lossless join reconstruction using natural joins and row-count / `EXCEPT` difference checks, and verify dependency preservation by ensuring all original functional dependencies remain enforceable within decomposed relations without cross-table joins.
+
+- Program: [experiment-07/queries.sql](experiment-07/queries.sql)
+- Output: [experiment-07/output](experiment-07/output)
+
+---
+
+### Experiment 8 — Transactions, ACID Properties & Concurrency Isolation
+
+Implement transactional banking operations on `BankingDB` (`Accounts` and `Transaction_Logs`) guaranteeing ACID properties. Demonstrate full transaction rollback via `ROLLBACK` on constraint violations and partial failure recovery via `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`. Simulate concurrency anomalies (Dirty Read under `READ UNCOMMITTED`, Non-Repeatable Read under `READ COMMITTED`, and Phantom Read under `REPEATABLE READ`) across concurrent sessions, and verify strict serial order using `SERIALIZABLE`.
+
+- Program: [experiment-08/queries.sql](experiment-08/queries.sql)
+- Output: [experiment-08/output](experiment-08/output)
+
+---
+
+### Experiment 9 — Single-Column & Composite Indexing Performance
+
+Design a railway reservation schema (`Railway_Bookings`) in `RailwayDB` and populate 5,000 synthetic records using a bulk stored procedure generator. Benchmark single-column B-tree index lookup (`pnr_no`) and multi-column composite index filtering (`train_no`, `travel_date`, `booking_status`) adhering to the Leftmost Prefix Rule against baseline Full Table Scans (`type: ALL`). Analyze execution paths, key usage, and scanned rows using `EXPLAIN`.
+
+- Program: [experiment-09/queries.sql](experiment-09/queries.sql)
+- Output: [experiment-09/output](experiment-09/output)
+
+---
+
+### Experiment 10 — Query Optimization & Anti-Pattern Refactoring
+
+Populate an e-commerce schema (`Customers` and `Orders`) in `OptimizationDB` with over 14,000 synthetic records using a data generator procedure. Formulate five slow queries exhibiting common database performance anti-patterns: non-SARGable date function (`YEAR()`), leading wildcard pattern match (`LIKE '%...'`), quadratic `NOT IN` subquery, unindexed filesort with `LIMIT`, and unindexed multi-table join with temporary aggregation. Optimize each query using SARGable predicates, prefix search, left anti-joins, composite sorting indexes, and covering indexes, achieving speedups up to 135x.
+
+- Program: [experiment-10/queries.sql](experiment-10/queries.sql)
+- Output: [experiment-10/output](experiment-10/output)
